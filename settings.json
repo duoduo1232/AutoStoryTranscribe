@@ -1,0 +1,76 @@
+[
+  {
+    "name": "autoname",
+    "type": "checkbox",
+    "label": "自动识别任务名字生成文件名"
+  },
+  {
+    "name": "questName",
+    "type": "input-text",
+    "label": "任务名称\n录制的任务名称，用于生成文件名",
+    "default": "默认"
+  },
+  {
+    "name": "questLocation",
+    "type": "input-text",
+    "label": "任务地点\n任务所在地点，用于组织文件夹",
+    "default": "默认"
+  },
+  {
+    "name": "keyDialogue",
+    "type": "input-text",
+    "label": "保存路径+对话界面",
+    "default": "F7"
+  },
+  {
+    "name": "keyFight",
+    "type": "input-text",
+    "label": "保存路径+战斗界面",
+    "default": "F8"
+  },
+  {
+    "name": "keyPause",
+    "type": "input-text",
+    "label": "保存路径+暂停界面",
+    "default": "F9"
+  },
+  {
+    "name": "keySave",
+    "type": "input-text",
+    "label": "只保存路径界面",
+    "default": "F10"
+  },
+  {
+    "name": "author",
+    "type": "input-text",
+    "label": "作者",
+    "default": ""
+  },
+  {
+    "name": "description",
+    "type": "input-text",
+    "label": "描述",
+    "default": ""
+  },
+  {
+    "name": "version",
+    "type": "input-text",
+    "label": "版本",
+    "default": "1.0"
+  },
+  {
+    "name": "noSkip",
+    "type": "checkbox",
+    "label": "关闭自动拾取"
+  },
+  {
+    "name": "noEat",
+    "type": "checkbox",
+    "label": "关闭自动吃药"
+  },
+  {
+    "name": "logmode",
+    "type": "checkbox",
+    "label": "不生成详细的日志"
+  }
+]
