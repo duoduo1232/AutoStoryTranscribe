@@ -284,6 +284,7 @@ let justExitedMap = false;
 let wasInMap = false;
 let logmode = false;
 let hasShownEndMessage = false; // 防止重复提示录制结束
+let isProcessingStory = false; // 防止重复处理剧情界面
 let startPointType = "teleport"; // 起始点类型，根据按键判断
 if (!settings.logmode){
     logmode = true; // 详细日志模式
@@ -440,7 +441,7 @@ async function recordPosition() {
         }
 
         if (dist < 1 && lastPosition) {
-            if (logmode) log.debug("位置未变化，跳过");
+            // 位置未变化，跳过（不再输出日志）
             return;
         }
 
@@ -808,7 +809,7 @@ async function handleEndRecording() {
 }
 
 async function handleStoryInterface() {
-        if (logmode) log.info("检测到剧情界面，处理特殊逻辑...");
+    if (logmode) log.info("检测到剧情界面，处理特殊逻辑...");
     
     if (trackData.positions.length > 0) {
         const lastPos = trackData.positions[trackData.positions.length - 1];
@@ -827,7 +828,11 @@ async function handleStoryInterface() {
     lastEndType = 'story';
 	globalThis.lastEndType = lastEndType;
     isRecording = false;
-    if (logmode) log.info("剧情界面处理完成");
+    isProcessingStory = false; // 重置标志
+    if (logmode) log.info("剧情界面处理完成，等待返回主界面...");
+    
+    // 等待返回主界面
+    await waitForMainUI();
 }
 
 // ===================== 辅助函数（状态检测、等待）=====================
@@ -838,17 +843,11 @@ async function waitForMainUI() {
         if (isInMainUI()) {
             log.info("已返回主界面");
             
+            // 从对话/剧情返回后，不自动开始录制，等待用户手动选择
             if (lastEndType === 'dialogue' || lastEndType === 'story') {
-                log.info("从对话/剧情返回主界面，自动开始新录制");
-                isRecording = true;
-                lastEndType = null;
-				globalThis.lastEndType = lastEndType;
-                await startNewRecording();
-                log.info("新录制段已开始，等待用户操作:");
-                log.info(`- 打开${SETTINGS.keyDialogue}界面：保存路径+对话`);
-                log.info(`- 打开${SETTINGS.keyFight}界面：保存路径+战斗`);
-                log.info(`- 打开${SETTINGS.keyPause}界面：保存路径+暂停`);
-                log.info(`- 打开${SETTINGS.keySave}界面：只保存路径`);
+                log.info(`从${lastEndType === 'dialogue' ? '对话' : '剧情'}返回主界面`);
+                log.info(`按 ${SETTINGS.keyFight} 键：以"传送点"开始录制`);
+                log.info(`按 ${SETTINGS.keyPause} 键：以"当前位置"开始录制`);
             }
             
             return;
@@ -948,8 +947,21 @@ async function checkUIStateChange() {
         await recordPosition();
     }
     
+    // 剧情界面检测 - 优先处理，自动保存并等待返回
+    if (currentState === ELEMENT_STATE.Story) {
+        if (isRecording && !isProcessingStory) {
+            isProcessingStory = true; // 设置标志，防止重复处理
+            log.info("录制中检测到剧情界面，立即保存路径 + 等待返回主界面");
+            await handleStoryInterface(); // 不再调用 recordFinalPosition()
+        } else if (!isRecording) {
+            log.info("非录制状态检测到剧情界面，等待返回主界面");
+            await waitForMainUI();
+        }
+        return;
+    }
+    
     if (!changed) {
-        if (logmode) log.debug("界面状态未变化");
+        // 界面状态未变化（不再输出日志）
         return;
     }
 
@@ -988,32 +1000,6 @@ async function checkUIStateChange() {
         // 非录制状态下，不做处理（功能键已在键盘回调中处理）
         if (logmode) log.debug("非录制状态，等待功能键触发");
         return;
-    }
-    
-    switch (currentState) {
-        case getElementStateByKey(SETTINGS.keyDialogue.replace('键', '')):
-            log.info(`触发保存路径 + 对话 (配置：${SETTINGS.keyDialogue})`);
-            await recordFinalPosition();
-            await handleDialogue();
-            break;
-        case getElementStateByKey(SETTINGS.keyFight.replace('键', '')):
-            log.info(`触发保存路径 + 战斗 (配置：${SETTINGS.keyFight})`);
-            await recordFinalPosition();
-            await handleFight();
-            break;
-        case getElementStateByKey(SETTINGS.keyPause.replace('键', '')):
-            log.info(`触发保存路径 + 暂停 (配置：${SETTINGS.keyPause})`);
-            await recordFinalPosition();
-            await handlePause();
-            break;
-        case getElementStateByKey(SETTINGS.keySave.replace('键', '')):
-            log.info(`触发保存路径 (配置：${SETTINGS.keySave})`);
-            await recordFinalPosition();
-            await handleEndRecording();
-            break;
-        default:
-            log.debug(`界面变化为 ${stateName}，无对应功能配置`);
-            break;
     }
 }
 
@@ -1142,110 +1128,115 @@ function analyzeLastEndType(processData) {
 
 // ===================== 主逻辑（脚本入口）=====================
 async function main() {
-    if (logmode) log.info("=== 自动化剧情录制器（原神 1920×1080 适配版）===");
-        
-    log.info("启用自动剧情");
-    dispatcher.AddTrigger(new RealtimeTimer("AutoSkip"));
-    if (!settings.noSkip) {
-        if (logmode) log.info("启用自动拾取");
-        dispatcher.AddTrigger(new RealtimeTimer("AutoPick"));
-    }
-    if (!settings.noEat) {
-        if (logmode) log.info("启用自动吃药");
-        dispatcher.AddTrigger(new RealtimeTimer("AutoEat"));
-    }
+    try {
+        if (logmode) log.info("=== 自动化剧情录制器（原神 1920×1080 适配版）===");
+            
+        log.info("启用自动剧情");
+        dispatcher.AddTrigger(new RealtimeTimer("AutoSkip"));
+        if (!settings.noSkip) {
+            if (logmode) log.info("启用自动拾取");
+            dispatcher.AddTrigger(new RealtimeTimer("AutoPick"));
+        }
+        if (!settings.noEat) {
+            if (logmode) log.info("启用自动吃药");
+            dispatcher.AddTrigger(new RealtimeTimer("AutoEat"));
+        }
 
-    uiStateMonitor = new UIStateMonitor();
-    await genshin.returnMainUi();
-    
-    // 强制提示：确保任务追踪栏已开启
-    log.info("=== 必须操作 ===");
-    log.info("1. 按 J 打开任务界面，勾选目标任务的「追踪」按钮");
-    log.info("2. 确认左侧已显示任务文本栏");
-    log.info("=== 必须操作 ===");
-    
-    if (currentTrackFile === 1 && lastEndType === null) {
-        log.info("全新录制，等待首次触发开始录制");
-        log.info(`请按下 ${SETTINGS.keyPause} 键开始录制`);
-    } else if (lastEndType === 'fight') {
-        log.info(`继续录制 (文件段${currentTrackFile})，上次以战斗结束，等待触发`);
-        log.info(`请按下 ${SETTINGS.keyPause} 键继续录制`);
-    } else if (lastEndType === 'pause') {
-        log.info(`继续录制 (文件段${currentTrackFile})，上次为暂停状态，等待恢复`);
-        log.info(`请按下 ${SETTINGS.keyPause} 键恢复录制`);
-    } else {
-        log.info(`继续录制 (文件段${currentTrackFile})，等待触发开始新录制`);
-        log.info(`请按下 ${SETTINGS.keyPause} 键开始新录制`);
-    }
-    
-    // 显示当前按键配置
-    log.info("=== 当前按键配置 ===");
-    log.info(`对话功能键：${SETTINGS.keyDialogue}`);
-    log.info(`战斗功能键：${SETTINGS.keyFight}`);
-    log.info(`暂停功能键：${SETTINGS.keyPause}`);
-    log.info(`保存功能键：${SETTINGS.keySave}`);
-    log.info("==================");
-    
-    let cycleCount = 0;
-    while (cycleCount < SETTINGS.maxRecordingCycles) {
-        cycleCount++;
+        uiStateMonitor = new UIStateMonitor();
+        await genshin.returnMainUi();
         
-        if (cycleCount % 1000 === 0) {
-            if (logmode) log.info(`系统运行进度：${cycleCount}/${SETTINGS.maxRecordingCycles} (${((cycleCount/SETTINGS.maxRecordingCycles)*100).toFixed(1)}%)`);
-        }
+        // 强制提示：确保任务追踪栏已开启
+        log.info("=== 必须操作 ===");
+        log.info("1. 按 J 打开任务界面，勾选目标任务的「追踪」按钮");
+        log.info("2. 确认左侧已显示任务文本栏");
+        log.info("=== 必须操作 ===");
         
-        if (isRecording) {
-            // 录制中持续记录位置点
-            await recordPosition();
-            await checkUIStateChange();
-            if (SETTINGS.enableTransmissionDetection) {
-                await checkTeleportation();
-            }
+        if (currentTrackFile === 1 && lastEndType === null) {
+            log.info("全新录制，等待首次触发开始录制");
+            log.info(`请按下 ${SETTINGS.keyPause} 键开始录制`);
+        } else if (lastEndType === 'fight') {
+            log.info(`继续录制 (文件段${currentTrackFile})，上次以战斗结束，等待触发`);
+            log.info(`请按下 ${SETTINGS.keyPause} 键继续录制`);
+        } else if (lastEndType === 'pause') {
+            log.info(`继续录制 (文件段${currentTrackFile})，上次为暂停状态，等待恢复`);
+            log.info(`请按下 ${SETTINGS.keyPause} 键恢复录制`);
         } else {
-            // 非录制状态，等待用户按键触发
-            if (logmode) log.debug(`非录制状态，lastEndType=${lastEndType}，等待用户操作`);
-            // 非录制状态，等待用户按键触发
-            if (isInMainUI()) {
-                if (lastEndType === 'save') {
-                    if (!hasShownEndMessage) {
-                        log.info(`录制结束`);
-                        log.info(`按 ${SETTINGS.keyFight} 键：以"传送点"开始录制`);
-                        log.info(`按 ${SETTINGS.keyPause} 键：以"当前位置"开始录制`);
-                        hasShownEndMessage = true;
-                    }
-                    // 不退出脚本，等待用户操作
-                } else if (lastEndType === null && !isRecording) {
-                    // 首次启动或暂停后恢复，但没有开始录制
-                    if (!hasShownEndMessage) {
-                        log.info(`等待开始录制`);
-                        log.info(`按 ${SETTINGS.keyFight} 键：以"传送点"开始录制`);
-                        log.info(`按 ${SETTINGS.keyPause} 键：以"当前位置"开始录制`);
-                        hasShownEndMessage = true;
-                    }
-                } else {
-                    hasShownEndMessage = false; // 重置标志
-                }
-                // 其他情况通过键鼠回调处理，无需额外等待
-            } else {
-                // 不在主界面时的处理
-                await waitForMainUI();
-            }
+            log.info(`继续录制 (文件段${currentTrackFile})，等待触发开始新录制`);
+            log.info(`请按下 ${SETTINGS.keyPause} 键开始新录制`);
         }
         
-        await sleep(100);
-    }
-    
-    if (cycleCount >= SETTINGS.maxRecordingCycles) {
-        log.warn(`系统已达到最大运行循环次数 (${SETTINGS.maxRecordingCycles})，自动结束`);
-        if (isRecording && trackData.positions.length > 0) {
-            const filename = await saveCurrentPath();
-            if (filename) {
-                processData.push(`地图追踪 ${filename}`);
-                await saveProcessData();
-                if (logmode) log.info("当前路径已自动保存");
+        // 显示当前按键配置
+        log.info("=== 当前按键配置 ===");
+        log.info(`对话功能键：${SETTINGS.keyDialogue}`);
+        log.info(`战斗功能键：${SETTINGS.keyFight}`);
+        log.info(`暂停功能键：${SETTINGS.keyPause}`);
+        log.info(`保存功能键：${SETTINGS.keySave}`);
+        log.info("==================");
+        
+        let cycleCount = 0;
+        while (cycleCount < SETTINGS.maxRecordingCycles) {
+            cycleCount++;
+            
+            if (cycleCount % 1000 === 0) {
+                if (logmode) log.info(`系统运行进度：${cycleCount}/${SETTINGS.maxRecordingCycles} (${((cycleCount/SETTINGS.maxRecordingCycles)*100).toFixed(1)}%)`);
+            }
+            
+            if (isRecording) {
+                // 录制中持续记录位置点
+                await recordPosition();
+                await checkUIStateChange();
+                if (SETTINGS.enableTransmissionDetection) {
+                    await checkTeleportation();
+                }
+            } else {
+                // 非录制状态，等待用户按键触发
+                // 非录制状态，等待用户按键触发
+                if (isInMainUI()) {
+                    if (lastEndType === 'save') {
+                        if (!hasShownEndMessage) {
+                            log.info(`录制结束`);
+                            log.info(`按 ${SETTINGS.keyFight} 键：以"传送点"开始录制`);
+                            log.info(`按 ${SETTINGS.keyPause} 键：以"当前位置"开始录制`);
+                            hasShownEndMessage = true;
+                        }
+                        // 不退出脚本，等待用户操作
+                    } else if (lastEndType === null && !isRecording) {
+                        // 首次启动或暂停后恢复，但没有开始录制
+                        if (!hasShownEndMessage) {
+                            log.info(`等待开始录制`);
+                            log.info(`按 ${SETTINGS.keyFight} 键：以"传送点"开始录制`);
+                            log.info(`按 ${SETTINGS.keyPause} 键：以"当前位置"开始录制`);
+                            hasShownEndMessage = true;
+                        }
+                    } else {
+                        hasShownEndMessage = false; // 重置标志
+                    }
+                    // 其他情况通过键鼠回调处理，无需额外等待
+                } else {
+                    // 不在主界面时的处理
+                    await waitForMainUI();
+                }
+            }
+            
+            await sleep(100);
+        }
+        
+        if (cycleCount >= SETTINGS.maxRecordingCycles) {
+            log.warn(`系统已达到最大运行循环次数 (${SETTINGS.maxRecordingCycles})，自动结束`);
+            if (isRecording && trackData.positions.length > 0) {
+                const filename = await saveCurrentPath();
+                if (filename) {
+                    processData.push(`地图追踪 ${filename}`);
+                    await saveProcessData();
+                    if (logmode) log.info("当前路径已自动保存");
+                }
             }
         }
-        keyHook.dispose() //清除键鼠回调占用资源
+    } catch (error) {
+        log.error(`main 函数执行错误：${error.message}`);
+    } finally {
+        keyHook.dispose(); // 清除键鼠回调占用资源
+        log.info("脚本结束，键鼠回调已释放");
     }
 }
 
@@ -1345,7 +1336,8 @@ async function startScript() {
             log.error(`脚本执行出现错误：${error.message}`);
             log.error("请检查配置并重新运行脚本");
         }
-        keyHook.dispose() //清除键鼠回调占用资源
+        keyHook.dispose(); // 清除键鼠回调占用资源
+        log.info("脚本异常结束，键鼠回调已释放");
     }
 }
 
