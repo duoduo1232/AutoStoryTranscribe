@@ -334,7 +334,7 @@ async function scanTextAndWriteToProcess(ocrRegion, textType, isForce = false) {
 		if (settings.autoname) log.warn(`启用了自动生成文件名将不会生成任何路径文件!!`);
 		if (settings.autoname) log.warn(`启用了自动生成文件名将不会生成任何路径文件!!`);
 		if (settings.autoname) log.warn(`启用了自动生成文件名将不会生成任何路径文件!!`);
-		if (settings.autoname) sleep(2000)
+		if (settings.autoname) await sleep(2000);
         if (!isForce) return;
         scanText = `未识别到${textType}`;
     }
