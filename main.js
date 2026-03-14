@@ -331,6 +331,7 @@ async function scanTextAndWriteToProcess(ocrRegion, textType, isForce = false) {
         if (logmode) log.info(`扫描到【${textType}】：${scanText}`);
     } else {
         log.warn(`未扫描到【${textType}】文本`);
+		log.warn(`启用了自动生成文件名将不会生成任何路径文件`);
         if (!isForce) return;
         scanText = `未识别到${textType}`;
     }
