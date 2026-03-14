@@ -331,10 +331,10 @@ async function scanTextAndWriteToProcess(ocrRegion, textType, isForce = false) {
         if (logmode) log.info(`扫描到【${textType}】：${scanText}`);
     } else {
         log.warn(`未扫描到【${textType}】文本`);
-		if (autoname) log.warn(`已开启自动识别生成文件名 未扫描到将不会保存任何路径文件`);
-		if (autoname) log.warn(`已开启自动识别生成文件名 未扫描到将不会保存任何路径文件`);
-		if (autoname) log.warn(`已开启自动识别生成文件名 未扫描到将不会保存任何路径文件`);
-		if (autoname) log.warn(`已开启自动识别生成文件名 未扫描到将不会保存任何路径文件`);
+        if (autoname){
+		    log.warn(`已开启自动识别生成文件名 未扫描到将不会保存任何路径文件`);
+		    log.warn(`已开启自动识别生成文件名 未扫描到将不会保存任何路径文件`);
+		}
         if (!isForce) return;
         scanText = `未识别到${textType}`;
     }
