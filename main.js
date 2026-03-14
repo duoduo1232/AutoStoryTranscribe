@@ -334,8 +334,7 @@ async function scanTextAndWriteToProcess(ocrRegion, textType, isForce = false) {
 		if (settings.autoname) {
 			    log.warn(`启用了 自动生成文件名 但没有识别到任务名字!!已退出录制!!`);
 		        await sleep(1000);
-		        let lastEndType = 'dialogue';
-		    	await waitForMainUI();
+		    	await handleEndRecording();
 		}
         if (!isForce) return;
         scanText = `未识别到${textType}`;
