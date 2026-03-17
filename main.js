@@ -667,9 +667,9 @@ function processMoveModes() {
     }
 }
 
-async function processTrackData() {
+async function processTrackData() {                //路径优化函数，bug挺多，目前没调用
     if (logmode) log.info("开始处理路径数据...");
-    optimizePathPoints();
+    optimizePathPoints();    
     processMoveModes();
     for (const pos of trackData.positions) {
         delete pos.state;
@@ -1007,7 +1007,7 @@ async function checkUIStateChange() {
 async function saveCurrentPath() {
     if (trackData.positions.length > 0) {
         trackData.info.name = `${SETTINGS.questName}-${currentTrackFile}`;
-        await processTrackData();
+        // await processTrackData();         //路径优化bug多注释了
         const filename = await saveTrackData();
         
         trackData.positions = [];
