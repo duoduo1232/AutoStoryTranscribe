@@ -1344,3 +1344,4 @@ async function startScript() {
 
 // ===================== 启动脚本 =====================
 startScript();
+//bot测试
