@@ -128,7 +128,6 @@ async function handleKeyboardStateDetection(keyCode) {
             log.info(`检测到按下${SETTINGS.keyFight}键，起始点类型设置为"传送点"`);
             isRecording = true;
             lastEndType = null;
-            globalThis.lastEndType = lastEndType;
             hasShownEndMessage = false;
             await startNewRecording();
             log.info("新录制段已开始，等待用户操作:");
@@ -250,11 +249,11 @@ const SETTINGS = {
     keyFight: settings.keyFight,
     keyPause: settings.keyPause,
     keySave: settings.keySave,
+    worldName: settings.worldName,
     autoFight: settings.autoFight !== false,
     maxRecordingCycles: 72000,
     strategyScript: "w(5)",
     teleportThreshold: 20,
-    enableTransmissionDetection: true,
     anomalyDetectionDistance: 1000
 };
 
@@ -266,7 +265,11 @@ let trackData = {
         "author": SETTINGS.author,
         "version": settings.version,
         "description": settings.description,
-        "map_name": "Teyvat",
+        "map_name": (() => {
+            // 从 settings 读取世界名称并提取英文
+            const worldConfig = settings.worldName || "提瓦特大陆 (Teyvat)";
+            return worldConfig.match(/\(([^)]+)\)/)?.[1] || "Teyvat";
+        })(),
         "bgi_version": "0.47.2"
     },
     "positions": []
@@ -291,7 +294,7 @@ if (!settings.logmode){
 }
 
 // ===================== 文本扫描结果写入工具（增加截图测试）=====================
-async function scanTextAndWriteToProcess(ocrRegion, textType, isForce = false) {
+async function scanTextAndWriteToProcess(ocrRegion, textType, isForce = false) {          //任务名称扫描函数
     if (!isRecording || isPaused) {
         if (logmode) log.debug("录制未启动或已暂停，跳过文本扫描写入");
         return;
@@ -331,9 +334,7 @@ async function scanTextAndWriteToProcess(ocrRegion, textType, isForce = false) {
         if (logmode) log.info(`扫描到【${textType}】：${scanText}`);
     } else {
         log.warn(`未扫描到【${textType}】文本`);
-		if (settings.autoname) log.warn(`启用了 自动生成文件名 但没有识别到任务名字!! 不会生成路径文件!!!`);
-        if (!isForce) return;
-        scanText = `未识别到${textType}`;
+        scanText = "ciallo";    //Ciallo～(∠・ω< )⌒★
     }
 
     let processCmd = `//${scanText}:`;
@@ -346,7 +347,7 @@ async function scanTextAndWriteToProcess(ocrRegion, textType, isForce = false) {
 }
 
 // ===================== 基础工具函数（文件、路径处理）=====================
-async function saveTrackData(filename = null) {
+async function saveTrackData(filename = null) {     //保存路径文件函数
     if (!filename) {
         filename = `${SETTINGS.questName}-${currentTrackFile}.json`;
     }
@@ -384,7 +385,7 @@ async function saveTrackData(filename = null) {
     }
 }
 
-async function saveProcessData() {
+async function saveProcessData() {            //保存路径文件函数
 	const processPath = `process/${SETTINGS.questLocation}/${SETTINGS.questName}/process.json`;
 	
 	try {
@@ -402,13 +403,40 @@ async function saveProcessData() {
 		return false;
 	}
 }
-async function ensureFolderExists(folderPath) {
+async function ensureFolderExists(folderPath) {            //确保文件夹存在函数
     if (logmode) log.info(`确保文件夹存在：${folderPath}`);
 }
 
-async function recordFinalPosition() {
-    await genshin.returnMainUi();
-    const position = genshin.getPositionFromMap();
+async function recordFinalPosition() {            //路径点处理函数
+    // 从 settings 读取世界名称并提取英文
+    const worldConfig = settings.worldName || "提瓦特大陆 (Teyvat)";
+    const worldName = worldConfig.match(/\(([^)]+)\)/)?.[1] || "Teyvat";
+    
+    // 尝试多次获取坐标
+    let position = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            position = genshin.getPositionFromMap(worldName, 900);
+            if (position && (position.X !== 0 || position.Y !== 0)) {
+                if (logmode) log.info(`第${attempt + 1}次获取最终坐标成功：X=${position.X}, Y=${position.Y}`);
+                break;
+            } else {
+                if (logmode) log.warn(`第${attempt + 1}次获取到无效坐标 (0, 0)，等待重试...`);
+                position = null;
+                await sleep(500);
+            }
+        } catch (error) {
+            if (logmode) log.error(`第${attempt + 1}次获取坐标失败：${error.message}`);
+            position = null;
+            await sleep(500);
+        }
+    }
+    
+    if (!position) {
+        if (logmode) log.warn("多次尝试获取最终坐标失败，使用默认值 (0, 0)");
+        position = { X: 0, Y: 0 };
+    }
+    
     trackData.positions.push({
         "id": trackData.positions.length + 1,
         "x": position.X,
@@ -423,14 +451,18 @@ async function recordFinalPosition() {
 }
 
 // ===================== 路径录制核心函数（坐标、状态记录）=====================
-async function recordPosition() {
+async function recordPosition() {         //路径点记录函数
     if (!isRecording || isPaused) {
         if (logmode) log.debug("录制已停止或暂停，跳过位置记录");
         return true;
     }
     try {
-        const position = genshin.getPositionFromMap();
-        if (position.X === 0 && position.Y === 0) {
+        // 从 settings 读取世界名称并提取英文
+        const worldConfig = SETTINGS.worldName || "提瓦特大陆 (Teyvat)";
+        const worldName = worldConfig.match(/\(([^)]+)\)/)?.[1] || "Teyvat";
+        
+        const position = genshin.getPositionFromMap(worldName, 900);
+        if (!position || (position.X === 0 && position.Y === 0)) {
             log.warn("获取坐标失败，跳过此次记录");
             return;
         }
@@ -522,7 +554,7 @@ async function recordPosition() {
     return true;
 }
 
-function optimizePathPoints() {
+function optimizePathPoints() {    //路径点优化函数（为下面路径函数调用的函数，目前没用）
     if (logmode) log.info("优化路径点...");
     
     if (trackData.positions.length > 2) {
@@ -590,7 +622,7 @@ function optimizePathPoints() {
     }
 }
 
-function processMoveModes() {
+function processMoveModes() {     //移动模式处理函数
     if (logmode) log.info("处理移动模式和动作...");
     
     const positions = trackData.positions;
@@ -680,7 +712,7 @@ async function processTrackData() {                //路径优化函数，bug挺
 }
 
 // ===================== 功能触发处理函数（对话/战斗/暂停）=====================
-async function handleDialogue() {
+async function handleDialogue() {      //对话处理函数
     if (!isRecording || isPaused) return;
     
     log.info("开始处理对话功能...");
@@ -742,7 +774,7 @@ async function handleDialogue() {
     await waitForMainUI();
 }
 
-async function handleFight() {
+async function handleFight() {     //战斗处理函数
     if (!isRecording || isPaused) return;
     
     log.info("开始处理战斗");
@@ -770,7 +802,7 @@ async function handleFight() {
     }
 }
 
-async function handlePause() {
+async function handlePause() {   //暂停处理函数
     if (isRecording) {
         const filename = await saveCurrentPath();
         if (filename) {
@@ -779,24 +811,28 @@ async function handlePause() {
             await saveProcessData();
         }
         lastEndType = 'pause';
-		globalThis.lastEndType = lastEndType;
         isRecording = false;
-        log.info("录制已暂停");
+        log.info("已保存暂停");
+        log.info(`等待开始录制`);
+        log.info(`按 ${SETTINGS.keyFight} 键：以"传送点"开始录制`);
+        log.info(`按 ${SETTINGS.keyPause} 键：以"当前位置"开始录制`);
     } else {
+        // 非录制状态下，以当前位置开始录制
+        startPointType = "path";
+        log.info(`检测到按下${SETTINGS.keyPause}键，起始点类型设置为"当前位置"`);
         isRecording = true;
         lastEndType = null;
-		globalThis.lastEndType = lastEndType;
-        log.info("录制已恢复");
+        hasShownEndMessage = false;
         await startNewRecording();
         log.info("新录制段已开始，等待用户操作:");
-        log.info(`- 按下${SETTINGS.keyDialogue}：保存路径+对话`);
-        log.info(`- 按下${SETTINGS.keyFight}：保存路径+战斗`);
-        log.info(`- 按下${SETTINGS.keyPause}：保存路径+暂停`);
+        log.info(`- 按下${SETTINGS.keyDialogue}：保存路径 + 对话`);
+        log.info(`- 按下${SETTINGS.keyFight}：保存路径 + 战斗`);
+        log.info(`- 按下${SETTINGS.keyPause}：保存路径 + 暂停`);
         log.info(`- 按下${SETTINGS.keySave}：只保存路径`);
     }
 }
 
-async function handleEndRecording() {
+async function handleEndRecording() { //结束录制处理函数
     log.info("=== 开始处理结束录制 ===");
     const filename = await saveCurrentPath();
     if (filename) {
@@ -809,7 +845,7 @@ async function handleEndRecording() {
     log.info(`录制已结束，isRecording=${isRecording}，process.json 已生成`);
 }
 
-async function handleStoryInterface() {
+async function handleStoryInterface() {      //剧情界面处理函数
     if (logmode) log.info("检测到剧情界面，处理特殊逻辑...");
     
     if (trackData.positions.length > 0) {
@@ -860,6 +896,27 @@ async function waitForMainUI() {
 }
 
 async function startNewRecording() {
+    // 确保录制状态
+    isRecording = true;
+    
+    // 从 settings 读取配置的世界名称
+    const worldConfig = SETTINGS.worldName || "提瓦特大陆 (Teyvat)";
+    // 从中文选项中提取英文世界名称
+    const currentWorld = worldConfig.match(/\(([^)]+)\)/)?.[1] || "Teyvat";
+    const mapPositionName = {
+        'Teyvat': '提瓦特',
+        'TheChasm': '层岩巨渊',
+        'Enkanomiya': '渊下宫',
+        'SeaOfBygoneEras': '旧日之海',
+        'AncientSacredMountain': '远古圣山'
+    };
+    const worldName = mapPositionName[currentWorld] || '提瓦特';
+    
+    log.info(`当前使用世界：${worldName} (${currentWorld})`);
+    
+    // 更新 trackData 中的地图名称
+    trackData.info.map_name = currentWorld;
+    
     // 重新读取 process.json 以获取最新的文件编号
     const processPath = `process/${SETTINGS.questLocation}/${SETTINGS.questName}/process.json`;
     try {
@@ -876,11 +933,39 @@ async function startNewRecording() {
         log.warn(`读取 process.json 失败：${error.message}`);
     }
     
-    const position = genshin.getPositionFromMap();
+    // 从 settings 读取世界名称并提取英文（用于坐标获取）
+    const worldConfigForPos = settings.worldName || "提瓦特大陆 (Teyvat)";
+    const worldNameForPos = worldConfigForPos.match(/\(([^)]+)\)/)?.[1] || "Teyvat";
+    
+    // 尝试多次获取坐标，防止初次识别失败
+    let position = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            position = genshin.getPositionFromMap(worldNameForPos, 900);
+            if (position && (position.X !== 0 || position.Y !== 0)) {
+                log.info(`第${attempt + 1}次获取坐标成功：X=${position.X}, Y=${position.Y}`);
+                break;
+            } else {
+                log.warn(`第${attempt + 1}次获取到无效坐标 (0, 0)，等待重试...`);
+                position = null;
+                await sleep(500);
+            }
+        } catch (error) {
+            log.error(`第${attempt + 1}次获取坐标失败：${error.message}`);
+            position = null;
+            await sleep(500);
+        }
+    }
+    
+    // 如果还是获取不到坐标，使用最后一次尝试的结果（可能是 null 或 (0,0)）
+    if (!position) {
+        log.warn("多次尝试获取坐标失败，使用默认值 (0, 0)");
+        position = { X: 0, Y: 0 };
+    }
     
     // 使用按键判断的起始点类型
     const initialPointType = startPointType;
-    const isFirstRecording = (currentTrackFile === 1);
+    const isFirstRecording = (currentTrackFile === 1) || false;
     
     log.info(`起始点类型：${initialPointType === "path" ? "当前位置" : "传送点"}`);
     
@@ -900,33 +985,17 @@ async function startNewRecording() {
     
     lastPosition = { x: position.X, y: position.Y };
 
+    // 输出录制开始日志
+    if (isFirstRecording) {
+        log.info(`第一次录制开始 (文件段${currentTrackFile})，坐标：X=${position.X}, Y=${position.Y}, 世界：${worldName}`);
+    } else {
+        log.info(`新录制段开始 (文件段${currentTrackFile})，坐标：X=${position.X}, Y=${position.Y}, 世界：${worldName}`);
+    }
+
     // 扫描任务追踪栏的主描述和子描述
     await scanTextAndWriteToProcess(OCR_REGIONS_1080P.TASK_DESCRIPTION, "任务主描述");
-
-    if (isFirstRecording) {
-        log.info(`第一次录制开始 (文件段${currentTrackFile})，坐标：X=${position.X}, Y=${position.Y}`);
-    } else {
-        log.info(`新录制段开始 (文件段${currentTrackFile})，坐标：X=${position.X}, Y=${position.Y}`);
-    }
 }
 
-async function waitForPauseResumeTrigger() {
-    log.info(`等待${SETTINGS.keyPause}界面触发开始录制...`);
-    
-    const pauseState = getElementStateByKey(SETTINGS.keyPause);
-    
-    while (true) {
-        const currentState = await checkElementState();
-        
-        if (currentState === pauseState) {
-            log.info(`检测到${SETTINGS.keyPause}界面，开始录制`);
-            await handlePause();
-            break;
-        }
-        
-        await sleep(500);
-    }
-}
 
 async function checkUIStateChange() {
     // 界面检测函数
@@ -1159,8 +1228,9 @@ async function main() {
             log.info(`继续录制 (文件段${currentTrackFile})，上次以战斗结束，等待触发`);
             log.info(`请按下 ${SETTINGS.keyPause} 键继续录制`);
         } else if (lastEndType === 'pause') {
-            log.info(`继续录制 (文件段${currentTrackFile})，上次为暂停状态，等待恢复`);
-            log.info(`请按下 ${SETTINGS.keyPause} 键恢复录制`);
+            log.info(`等待开始录制`);
+            log.info(`按 ${SETTINGS.keyFight} 键：以"传送点"开始录制`);
+            log.info(`按 ${SETTINGS.keyPause} 键：以"当前位置"开始录制`);
         } else {
             log.info(`继续录制 (文件段${currentTrackFile})，等待触发开始新录制`);
             log.info(`请按下 ${SETTINGS.keyPause} 键开始新录制`);
@@ -1186,9 +1256,6 @@ async function main() {
                 // 录制中持续记录位置点
                 await recordPosition();
                 await checkUIStateChange();
-                if (SETTINGS.enableTransmissionDetection) {
-                    await checkTeleportation();
-                }
             } else {
                 // 非录制状态，等待用户按键触发
                 // 非录制状态，等待用户按键触发
@@ -1282,10 +1349,7 @@ class UIStateMonitor {
     }
 }
 
-// ===================== 兼容函数（保留原有逻辑调用）=====================
-async function checkTeleportation() {
-    return;
-}
+
 
 // ===================== 补充 startScript 函数（脚本入口）=====================
 async function startScript() {
@@ -1344,4 +1408,3 @@ async function startScript() {
 
 // ===================== 启动脚本 =====================
 startScript();
-//bot测试

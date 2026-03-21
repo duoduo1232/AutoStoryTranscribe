@@ -1,9 +1,9 @@
 {
   "manifest_version": 1,
-  "name": "自动剧情录制3.0",
-  "version": "3.0",
+  "name": "自动剧情录制3.2",
+  "version": "3.2",
   "bgi_version": "0.45.0",
-  "description": "自动剧情录制3.0",
+  "description": "自动剧情录制3.2",
   "tags": [
     "工具",
     "剧情"

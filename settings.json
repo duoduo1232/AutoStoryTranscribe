@@ -72,5 +72,18 @@
     "name": "logmode",
     "type": "checkbox",
     "label": "不生成详细的日志"
+  },
+  {
+    "name": "worldName",
+    "type": "select",
+    "label": "当前所在世界\n选择当前录制所在的世界，用于坐标识别",
+    "default": "提瓦特大陆 (Teyvat)",
+    "options": [
+      "提瓦特大陆 (Teyvat)",
+      "层岩巨渊 (TheChasm)",
+      "渊下宫 (Enkanomiya)",
+      "旧日之海 (SeaOfBygoneEras)",
+      "远古圣山 (AncientSacredMountain)"
+    ]
   }
 ]
