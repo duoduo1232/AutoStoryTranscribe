@@ -1223,17 +1223,22 @@ async function main() {
         
         if (currentTrackFile === 1 && lastEndType === null) {
             log.info("全新录制，等待首次触发开始录制");
-            log.info(`请按下 ${SETTINGS.keyPause} 键开始录制`);
+            log.info(`等待开始录制`);
+            log.info(`按 ${SETTINGS.keyFight} 键：以"传送点"开始录制`);
+            log.info(`按 ${SETTINGS.keyPause} 键：以"当前位置"开始录制`);
         } else if (lastEndType === 'fight') {
             log.info(`继续录制 (文件段${currentTrackFile})，上次以战斗结束，等待触发`);
-            log.info(`请按下 ${SETTINGS.keyPause} 键继续录制`);
+            log.info(`等待开始录制`);
+            log.info(`按 ${SETTINGS.keyFight} 键：以"传送点"开始录制`);
+            log.info(`按 ${SETTINGS.keyPause} 键：以"当前位置"开始录制`);
         } else if (lastEndType === 'pause') {
             log.info(`等待开始录制`);
             log.info(`按 ${SETTINGS.keyFight} 键：以"传送点"开始录制`);
             log.info(`按 ${SETTINGS.keyPause} 键：以"当前位置"开始录制`);
         } else {
-            log.info(`继续录制 (文件段${currentTrackFile})，等待触发开始新录制`);
-            log.info(`请按下 ${SETTINGS.keyPause} 键开始新录制`);
+            log.info(`等待开始录制`);
+            log.info(`按 ${SETTINGS.keyFight} 键：以"传送点"开始录制`);
+            log.info(`按 ${SETTINGS.keyPause} 键：以"当前位置"开始录制`);
         }
         
         // 显示当前按键配置
