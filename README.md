@@ -5,8 +5,12 @@
 AutoStoryTranscribe 是一个用于原神的自动化脚本录制系统，可以生成地图追踪路径（.json）和任务流程脚本（process.json）。
 
 ##网上说说就算了现实中谁不想急头白脸的在瑞德米里面加上一只石墩子
-![Stone Badge](https://stone.professorlee.work/api/stone/duoduo1232/AutoStoryTranscribe)
+
+
+
 <img src="https://stone.professorlee.work/api/stone/duoduo1232/AutoStoryTranscribe" alt="Stone Badge" width="200" />
+
+
 
 ## 主要功能
 
